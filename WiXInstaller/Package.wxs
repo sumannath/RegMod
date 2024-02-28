@@ -61,16 +61,27 @@
                                 Name="RegMod"
                                 Wait="true" />
 			</Component>
-			<!-- Create a single component which is the RegMod.exe file -->
+			<!-- Create a single component for Newtonsoft.Json file -->
 			<Component Id="Newtonsoft.Json.dll" Bitness="always64">
 				<File Id="Newtonsoft.Json.dll"
                       Source="$(var.RegMod.TargetDir)Newtonsoft.Json.dll"
                       KeyPath="true" />
 			</Component>
+			<!-- Create a single component for OSVersionExt file -->
 			<Component Id="OSVersionExt.dll" Bitness="always64">
 				<File Id="OSVersionExt.dll"
                       Source="$(var.RegMod.TargetDir)OSVersionExt.dll"
                       KeyPath="true" />
+			</Component>
+			<!-- Create a single component for Registry Entry -->
+			<Component Id="RegistryEntries">
+				<RegistryKey Root="HKLM" Key="Software">
+					<RegistryKey Key="Vshield" ForceCreateOnInstall="true">
+						<RegistryKey Key="Service" ForceCreateOnInstall="true">
+							<RegistryValue Name="ApiUrl" Type="string" Value="https://e83d-4-213-118-130.ngrok-free.app/api/policies" KeyPath="true"/>
+						</RegistryKey>
+					</RegistryKey>
+				</RegistryKey>
 			</Component>
 		</DirectoryRef>
 
@@ -79,6 +90,7 @@
 			<ComponentRef Id="ServiceExecutable" />
 			<ComponentRef Id="Newtonsoft.Json.dll" />
 			<ComponentRef Id="OSVersionExt.dll" />
+			<ComponentRef Id="RegistryEntries" />
 		</Feature>
 
 	</Package>
