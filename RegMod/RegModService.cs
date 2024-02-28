@@ -11,6 +11,7 @@ using System.Timers;
 using OSVersionExtension;
 using Microsoft.Win32;
 using System.IO;
+using System.Security.Principal;
 
 namespace RegMod
 {
@@ -66,13 +67,34 @@ namespace RegMod
                 List<Policy> result = JsonConvert.DeserializeObject<List<Policy>>(jsonData);
                 foreach (Policy policy in result)
                 {
-                    applyRegKey(policy);
+                    WriteToLoggedOnUsers(policy);
                 }
             }
             catch (Exception ex)
             {
                 writeEventLog($"Error: {ex}");
             }
+        }
+
+        private void WriteToLoggedOnUsers(Policy policy)
+        {
+            foreach (var user in WindowsIdentityHelper.GetLoggedOnUsers())
+            {
+                try
+                {
+                    applyRegKey(policy, user.Owner.Value);
+                    Console.WriteLine("Updated user " + user.Name + "  SID " + user.Owner.Value);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.GetBaseException().Message);
+                }
+            }
+        }
+
+        private void WriteRegistry(string value)
+        {
+            throw new NotImplementedException();
         }
 
         private string getApiPathFromRegistry()
@@ -96,7 +118,7 @@ namespace RegMod
             return apiPath;
         }
 
-        private void applyRegKey(Policy policy)
+        private void applyRegKey(Policy policy, string sid)
         {
             writeEventLog($"Applying policy: {policy.PolicyUID}");
 
@@ -111,57 +133,42 @@ namespace RegMod
                 writeEventLog($"Current OS is compatible for policy. Path: {policy.Path}");
                 try
                 {
-                    RegistryKey registryBase = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
-                    using (RegistryKey key = registryBase.CreateSubKey(policy.Path, true))
-                    {
-                        if (Registry.CurrentUser.OpenSubKey(policy.Path, true) != null)
-                        {
-                            writeEventLog("Key exists!");
-                        }
-                        if (key != null)
-                        {
-                            writeEventLog($"Key opened: {key}");
+                    string rootKey = @"HKEY_USERS\" + sid;
+                    string fullKey = $"{rootKey}\\{policy.Path}";
 
-                            switch (policy.RegType)
+                    switch (policy.RegType)
+                    {
+                        case "REG_DWORD":
+                            writeEventLog("Applying DWORD value...");
+                            int intValue;
+                            if (int.TryParse(policy.Value, out intValue))
                             {
-                                case "REG_DWORD":
-                                    writeEventLog("Applying DWORD value...");
-                                    int intValue;
-                                    if (int.TryParse(policy.Value, out intValue))
-                                    {
-                                        key.SetValue(policy.Entry, intValue, RegistryValueKind.DWord);
-                                    }
-                                    else
-                                    {
-                                        writeEventLog($"Invalid REG_DWORD value: {policy.Value}");
-                                    }
-                                    break;
-                                case "REG_STRING":
-                                    writeEventLog("Applying String value...");
-                                    key.SetValue(policy.Entry, policy.Value, RegistryValueKind.String);
-                                    break;
-                                case "REG_BINARY":
-                                    writeEventLog($"Applying Binary value...");
-                                    string val = policy.Value.Replace("hex:", "");
-                                    writeEventLog($"Val: {val}");
-                                    var data = val.Split(',')
-                                            .Select(x => Convert.ToByte(x, 16))
-                                            .ToArray();
-                                    writeEventLog($"Value: {data}");
-                                    key.SetValue(policy.Entry, data, RegistryValueKind.Binary);
-                                    writeEventLog($"Value written");
-                                    break;
-                                default:
-                                    string message = $"Unsupported registry value type: {policy.RegType}";
-                                    writeEventLog($"Error: {message}");
-                                    break;
+                                Registry.SetValue(fullKey, policy.Entry, intValue, RegistryValueKind.DWord);
                             }
-                        }
-                        else
-                        {
-                            string message = $"Unable to create or open registry key: {policy.Path}";
+                            else
+                            {
+                                writeEventLog($"Invalid REG_DWORD value: {policy.Value}");
+                            }
+                            break;
+                        case "REG_STRING":
+                            writeEventLog("Applying String value...");
+                            Registry.SetValue(fullKey, policy.Entry, policy.Value, RegistryValueKind.String);
+                            break;
+                        case "REG_BINARY":
+                            writeEventLog($"Applying Binary value...");
+                            string val = policy.Value.Replace("hex:", "");
+                            writeEventLog($"Val: {val}");
+                            var data = val.Split(',')
+                                    .Select(x => Convert.ToByte(x, 16))
+                                    .ToArray();
+                            writeEventLog($"Value: {data}");
+                            Registry.SetValue(fullKey, policy.Entry, data, RegistryValueKind.Binary);
+                            writeEventLog($"Value written");
+                            break;
+                        default:
+                            string message = $"Unsupported registry value type: {policy.RegType}";
                             writeEventLog($"Error: {message}");
-                        }
+                            break;
                     }
                 }
                 catch(Exception e)
