@@ -1,0 +1,8 @@
+﻿<Project Sdk="WixToolset.Sdk/4.0.4">
+  <PropertyGroup>
+    <OutputName>RegMod</OutputName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RegMod\RegMod.csproj" />
+  </ItemGroup>
+</Project>
